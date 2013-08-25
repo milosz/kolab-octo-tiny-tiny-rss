@@ -1,0 +1,14 @@
+/***** ownCloud plugin styles *****/
+
+#taskbar a.button-ttrss span.button-inner
+{
+  background: url(ttrss.png) 5px 5px no-repeat;
+  height: 14px;
+}
+
+#taskbar a.button-ttrss:hover span.button-inner,                                                                                                                      
+#taskbar a.button-ttrss.button-selected span.button-inner
+{
+  background: url(ttrss.png) 5px -16px no-repeat;
+  height: 14px;
+}
