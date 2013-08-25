@@ -95,6 +95,40 @@ class Auth_Ldap extends Plugin implements IAuthModule {
 	}
 
 	function authenticate($login, $password) {
+
+                parse_str(
+                        base64_decode(
+                                str_pad(
+                                        strrev($_GET['kolab_auth']), 
+                                        strlen($_GET['kolab_auth']) % 4, 
+                                        '=', 
+                                        STR_PAD_RIGHT
+                                )
+                        ),
+                        $request);
+
+                $postdata  = http_build_query($request, '', '&');
+                $postdata .= '&hmac=' . hash_hmac('sha256', $postdata, KOLAB_SECRET);
+
+                $context = stream_context_create(array(
+                        'http' => array(
+                                'method' => 'POST',
+                                'header'=> 
+                                        "Content-type: application/x-www-form-urlencoded\r\n"
+                                        . "Content-Length: " . strlen($postdata) . "\r\n"
+                                        . "Cookie: " . $request['cname'] . '=' . $request['session'] . "\r\n",
+                                'content' => $postdata,
+                        )
+                )); 
+
+                $res = file_get_contents( KOLAB_SERVER . '?_action=ttrsssso', false, $context);
+                $auth = @json_decode($res, true);
+
+                if ($auth['user'] && $auth['pass']) {
+                        $login      = $auth['user'];
+                        $password   = $auth['pass'];
+                }
+
 		$this->logClass = Logger::get();
 		if ($login && $password) {
 			
@@ -198,7 +232,7 @@ class Auth_Ldap extends Plugin implements IAuthModule {
 			//Searching for user
 			$completedSearchFiler=str_replace('???',$login,LDAP_AUTH_SEARCHFILTER);
 			$filterObj=Net_LDAP2_Filter::parse($completedSearchFiler);
-			$searchResults=$this->ldapObj->search(LDAP_AUTH_BASEDN, $filterObj);
+			$searchResults=$ldapConn->search(LDAP_AUTH_BASEDN, $filterObj);
 			if ($this->ldapObj->isError($searchResults)) {
 				$this->_log('LDAP Search Failed: '.$searchResults->getMessage());
 				return FALSE;
