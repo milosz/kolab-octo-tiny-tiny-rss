@@ -1,17 +1,22 @@
 <?php
 
 /**
- * OwnCloud Plugin
+ * Kolab Tiny Tiny RSS Plugin
  *
  * @author Aleksander 'A.L.E.C' Machniak <machniak@kolabsys.com>
  * @author Thomas Bruederli <bruederli@kolabsys.com>
  * @licence GNU AGPL
  *
- * Configuration (see config.inc.php.dist)
+ * Configuration (see config.inc.php)
  * 
+ * 
+ * Modified OwnCloud Plugin
+ * 
+ * For description visit:
+ * http://blog.sleeplessbeastie.eu/2013/06/28/kolab-how-to-integrate-tiny-tiny-rss/
  */
 
-class owncloud extends rcube_plugin
+class ttrss extends rcube_plugin
 {
     // all task excluding 'login'
    public $task = '?(?!login).*';
@@ -32,49 +37,37 @@ class owncloud extends rcube_plugin
         $this->add_texts('localization/', false);
 
         // register task
-        $this->register_task('owncloud');
+        $this->register_task('ttrss');
 
         // register actions
         $this->register_action('index', array($this, 'action'));
-        $this->register_action('embed', array($this, 'embed'));
         $this->add_hook('session_destroy', array($this, 'logout'));
 
-        // handler for sso requests sent by the owncloud kolab_auth app
-        if ($rcmail->action == 'owncloudsso' && !empty($_POST['token'])) {
+        // handler for sso requests sent by the ttrss kolab_auth app
+        if ($rcmail->action == 'ttrsssso' && !empty($_POST['token'])) {
             $this->add_hook('startup', array($this, 'sso_request'));
         }
 
         // add taskbar button
         $this->add_button(array(
-            'command'    => 'owncloud',
-            'class'      => 'button-owncloud',
-            'classsel'   => 'button-owncloud button-selected',
+            'command'    => 'ttrss',
+            'class'      => 'button-ttrss',
+            'classsel'   => 'button-ttrss button-selected',
             'innerclass' => 'button-inner',
-            'label'      => 'owncloud.owncloud',
+            'label'      => 'ttrss.ttrss',
             ), 'taskbar');
 
         // add style for taskbar button (must be here) and Help UI
-        $this->include_stylesheet($this->local_skin_path()."/owncloud.css");
-
-        if ($rcmail->task == 'owncloud' || $rcmail->action == 'compose') {
-            $this->include_script('owncloud.js');
-        }
+        $this->include_stylesheet($this->local_skin_path()."/ttrss.css");
     }
 
     function action()
     {
         $rcmail = rcube::get_instance();
 
-        $rcmail->output->add_handlers(array('owncloudframe' => array($this, 'frame')));
-        $rcmail->output->set_pagetitle($this->gettext('owncloud'));
-        $rcmail->output->send('owncloud.owncloud');
-    }
-
-    function embed()
-    {
-        $rcmail = rcmail::get_instance();
-        $rcmail->output->command('plugin.owncloudembed', $this->frame());
-        $rcmail->output->send();
+        $rcmail->output->add_handlers(array('ttrssframe' => array($this, 'frame')));
+        $rcmail->output->set_pagetitle($this->gettext('ttrss'));
+        $rcmail->output->send('ttrss.ttrss');
     }
 
     function frame()
@@ -83,17 +76,17 @@ class owncloud extends rcube_plugin
         $this->load_config();
 
         // generate SSO auth token
-        if (empty($_SESSION['owncloudauth']))
-            $_SESSION['owncloudauth'] = md5('ocsso' . $_SESSION['user_id'] . microtime() . $rcmail->config->get('des_key'));
+        if (empty($_SESSION['ttrssauth']))
+            $_SESSION['ttrssauth'] = md5('ttrsssso' . $_SESSION['user_id'] . microtime() . $rcmail->config->get('des_key'));
 
-        $src  = $rcmail->config->get('owncloud_url');
+        $src  = $rcmail->config->get('ttrss_url');
         $src .= '?kolab_auth=' . strrev(rtrim(base64_encode(http_build_query(array(
             'session' => session_id(),
             'cname'   => session_name(),
-            'token'   => $_SESSION['owncloudauth'],
+            'token'   => $_SESSION['ttrssauth'],
         ))), '='));
 
-        return html::tag('iframe', array('id' => 'owncloudframe', 'src' => $src,
+        return html::tag('iframe', array('id' => 'ttrssframe', 'src' => $src,
             'width' => "100%", 'height' => "100%", 'frameborder' => 0));
     }
 
@@ -102,8 +95,8 @@ class owncloud extends rcube_plugin
         $rcmail = rcube::get_instance();
         $this->load_config();
 
-        // send logout request to owncloud
-        $logout_url = $rcmail->config->get('owncloud_url') . '?logout=true';
+        // send logout request to ttrss
+        $logout_url = $rcmail->config->get('ttrss_url') . '/backend.php?op=logout';
         $rcmail->output->add_script("new Image().src = '$logout_url';", 'foot');
     }
 
@@ -119,11 +112,11 @@ class owncloud extends rcube_plugin
         if ($hmac = $_POST['hmac']) {
             unset($_POST['hmac']);
             $postdata = http_build_query($_POST, '', '&');
-            $sign_valid = ($hmac == hash_hmac('sha256', $postdata, $rcmail->config->get('owncloud_secret', '<undefined-secret>')));
+            $sign_valid = ($hmac == hash_hmac('sha256', $postdata, $rcmail->config->get('ttrss_secret', '<undefined-secret>')));
         }
 
-        // if ownCloud sent a valid auth request, return plain username and password
-        if ($sign_valid && !empty($_POST['token']) && $_POST['token'] == $_SESSION['owncloudauth']) {
+        // if TTRSS sent a valid auth request, return plain username and password
+        if ($sign_valid && !empty($_POST['token']) && $_POST['token'] == $_SESSION['ttrssauth']) {
             $user = $_SESSION['kolab_uid']; // requires kolab_auth plugin
             $pass = $rcmail->decrypt($_SESSION['password']);
             $response = array('user' => $user, 'pass' => $pass);
